@@ -1761,8 +1761,12 @@ class TestConnectionCleanup(tb.TestCase):
 class TestConnection(tb.ConnectedTestCase):
 
     async def test_connection_cancelled_during_transport_setup(self):
-        for connection_lost_first in (False, True):
-            with self.subTest(connection_lost_first=connection_lost_first):
+        for sslmode, connection_lost_first in itertools.product(
+            (False, 'prefer'), (False, True),
+        ):
+            with self.subTest(
+                sslmode=sslmode, connection_lost_first=connection_lost_first,
+            ):
                 async def interrupted_connector(factory, *args, **kwargs):
                     proto = factory()
                     if connection_lost_first:
@@ -1775,10 +1779,11 @@ class TestConnection(tb.ConnectedTestCase):
                     self.loop, 'create_connection', interrupted_connector,
                 ):
                     with self.assertRaises(asyncio.CancelledError):
-                        await self.connect(host='127.0.0.1', ssl=False)
+                        await self.connect(host='127.0.0.1', ssl=sslmode)
 
-                # Authentication must not report an unobserved failure after
-                # cancellation, even if the transport closes afterwards.
+                # Neither authentication nor the SSL upgrade must report an
+                # unobserved failure after cancellation, even if the
+                # transport closes afterwards.
                 await asyncio.sleep(0)
                 gc.collect()
 
